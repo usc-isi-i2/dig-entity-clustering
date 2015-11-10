@@ -2,11 +2,35 @@ import codecs
 import sys
 import getopt
 import json
-from random import random
+import random
 
 # personAge, hairColor, eyeColor, name, imageId??
 
 PRIOR = 0.6
+
+def score_personAge(entity_values, record_values):
+    pass
+
+def score_hairColor(entity_values, record_values):
+    pass
+
+def score_eyeColor(entity_values, record_values):
+    pass
+
+def score_name(entity_values, record_values):
+    best_score = 0
+    for item in record_values:
+        if item in entity_values:
+            best_score = 1
+            break
+    return best_score
+
+score_functions = {
+    'personAge': score_personAge,
+    'hairColor': score_hairColor,
+    'eyeColor': score_eyeColor,
+    'name': score_name,
+}
 
 def get_best_record_and_score(cluster, records):
     best_record = {}
@@ -16,8 +40,17 @@ def get_best_record_and_score(cluster, records):
         multiplier = 0
         for key in cluster.get_keys():
             if key in record:
-                if score_record(cluster, record, key) == 1:
+                record_values = []
+                entity_values = cluster.entity[key]
+                
+                if isinstance(record[key], basestring):
+                    record_values.append(record[key])
+                else:
+                    record_values = record[key]
+                
+                if score_functions[key](entity_values, record_values) == 1:
                     return (record, 1)
+                
 #                 score = score * score_record(cluster, record, key)
 #                 multiplier = 1.0
         
@@ -27,24 +60,26 @@ def get_best_record_and_score(cluster, records):
             best_score = score
     return (best_record, best_score)
 
-def score_record(cluster, record, unit):
-    best_score = 0.2
-    
-    record_values = []
-    entity_values = cluster.entity[unit]
-    
-    if isinstance(record[unit], basestring):
-        record_values.append(record[unit])
-    else:
-        record_values = record[unit]
-    
-    if unit == 'name':
-        for item in record_values:
-            if item in entity_values:
-                best_score = 1
-                break
-            
-    return best_score
+# def score_record(cluster, record, unit):
+#     best_score = 0.2
+#     
+#     record_values = []
+#     entity_values = cluster.entity[unit]
+#     
+#     if isinstance(record[unit], basestring):
+#         record_values.append(record[unit])
+#     else:
+#         record_values = record[unit]
+#     
+#     if unit == 'name':
+#         for item in record_values:
+#             if item in entity_values:
+#                 best_score = 1
+#                 break
+#     elif unit == '':
+#         
+#             
+#     return best_score
 
 class Cluster(object):
     def addItem(self, item):
@@ -153,7 +188,7 @@ def main(argv):
         
     # Take an item from the canopy and make it a cluster
     clusters = []
-#     random.shuffle(records)
+    random.shuffle(records)
     
     while len(records) > 0:
         processing_item = records.pop()
