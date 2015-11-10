@@ -167,7 +167,7 @@ def main(argv):
             sys.exit()
         elif opt in ("-i", "--ifile"):
             inputfile = arg
-    print 'Input file is ', inputfile
+#     print 'Input file is ', inputfile
     
     records = []
     
@@ -185,7 +185,7 @@ def main(argv):
         processing_item = records.pop()
         
         new_cluster = Cluster()
-        print "Processing " + str(processing_item)
+#         print "Processing " + str(processing_item)
         new_cluster.addItem(processing_item)
         score = 1
         while score > 0.5:
@@ -198,8 +198,11 @@ def main(argv):
 
         clusters.append(new_cluster)
         
-        print len(records)
-        print len(clusters)
+    json_result = {}
+    json_result['entities'] = []
+    for cluster in clusters:
+        json_result['entities'].append(json.loads(str(cluster)))
+    print json.dumps(json_result, sort_keys=True, indent=4, separators=(',', ': '))
 
 if __name__ == "__main__":
     main(sys.argv[1:])
