@@ -4,42 +4,39 @@ import getopt
 import json
 import random
 
-# personAge, hairColor, eyeColor, name, imageId??
+PRIOR = 0.2
+data_folder = '../../data/'
 
-PRIOR = 0.6
+## PROBABILITY TABLES
+MATCHPROBS = json.loads(open(data_folder+'MATCHPROBS.json').read())
 
-def score_personAge(entity_values, record_values):
-    pass
+personAge_frequencies = json.loads(open(data_folder+'personAge_frequencies.json').read())
+hairColor_frequencies = json.loads(open(data_folder+'hairColor_frequencies.json').read())
+eyeColor_frequencies = json.loads(open(data_folder+'eyeColor_frequencies.json').read())
+name_frequencies = json.loads(open(data_folder+'name_frequencies.json').read())
 
-def score_hairColor(entity_values, record_values):
-    pass
+RELATIVE_FREQS = {
+    'personAge': personAge_frequencies,
+    'hairColor': hairColor_frequencies,
+    'eyeColor': eyeColor_frequencies,
+    'name': name_frequencies
+}
 
-def score_eyeColor(entity_values, record_values):
-    pass
-
-def score_name(entity_values, record_values):
-    best_score = 0
-    for item in record_values:
-        if item in entity_values:
-            best_score = 1
-            break
-    return best_score
-
-score_functions = {
-    'personAge': score_personAge,
-    'hairColor': score_hairColor,
-    'eyeColor': score_eyeColor,
-    'name': score_name,
+TOTALS = {
+    'personAge': 11699659,
+    'hairColor': 1993511,
+    'eyeColor': 1334966,
+    'name': 1425455
 }
 
 def get_best_record_and_score(cluster, records):
     best_record = {}
     best_score = 0
     for record in records:
-        score = 1.0
-        multiplier = 0
+        score = PRIOR
         for key in cluster.get_keys():
             if key in record:
+                # We do this because some of the values are strings and some are arrays
                 record_values = []
                 entity_values = cluster.entity[key]
                 
@@ -48,38 +45,32 @@ def get_best_record_and_score(cluster, records):
                 else:
                     record_values = record[key]
                 
-                if score_functions[key](entity_values, record_values) == 1:
-                    return (record, 1)
+                best_unit_score = -1
+                for record_value in record_values:
+                    record_value = record_value.lower()
+                    for entity_value in entity_values:
+                        entity_value = entity_value.lower()
+                        freq_count = 1
+                        if record_value in RELATIVE_FREQS[key]:
+                            freq_count = RELATIVE_FREQS[key][record_value]
+                        PVr = (1.0*freq_count) / (1.0*TOTALS[key])
+                        if record_value == entity_value:
+                            numerator = MATCHPROBS[key]
+                        else:
+                            numerator = (1 - MATCHPROBS[key]) * PVr
+                        denom = PVr
+                        unit_score = numerator / denom
+                        
+                        if unit_score > best_unit_score:
+                            best_unit_score = unit_score
+                if best_unit_score > -1:
+                    score = score * best_unit_score
                 
-#                 score = score * score_record(cluster, record, key)
-#                 multiplier = 1.0
-        
-        score = score * multiplier
         if score > best_score:
             best_record = record
             best_score = score
+    
     return (best_record, best_score)
-
-# def score_record(cluster, record, unit):
-#     best_score = 0.2
-#     
-#     record_values = []
-#     entity_values = cluster.entity[unit]
-#     
-#     if isinstance(record[unit], basestring):
-#         record_values.append(record[unit])
-#     else:
-#         record_values = record[unit]
-#     
-#     if unit == 'name':
-#         for item in record_values:
-#             if item in entity_values:
-#                 best_score = 1
-#                 break
-#     elif unit == '':
-#         
-#             
-#     return best_score
 
 class Cluster(object):
     def addItem(self, item):
@@ -200,9 +191,9 @@ def main(argv):
         while score > 0.5:
             (record, score) = get_best_record_and_score(new_cluster, records)
             if score > 0.5:
-                print score
                 new_cluster.addItem(record)
-                print " -- Added " + str(record)
+#                 print score
+#                 print " -- Added " + str(record)
                 records.remove(record)
 
         clusters.append(new_cluster)
