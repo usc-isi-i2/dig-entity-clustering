@@ -33,15 +33,16 @@ def get_best_record_and_score(cluster, records):
     for record in records:
         score = PRIOR
         for key in cluster.get_keys():
-            if key in record:
+            record_key = key.replace("entity_", "")
+            if record_key in record:
                 # We do this because some of the values are strings and some are arrays
                 record_values = []
-                entity_values = cluster.entity["entity_"+key]
+                entity_values = cluster.entity[key]
                 
-                if isinstance(record[key], basestring):
-                    record_values.append(record[key])
+                if isinstance(record[record_key], basestring):
+                    record_values.append(record[record_key])
                 else:
-                    record_values = record[key]
+                    record_values = record[record_key]
                  
                 freq_count_total = 0
                 match = False
@@ -50,19 +51,19 @@ def get_best_record_and_score(cluster, records):
                     for entity_value in entity_values:
                         entity_value = entity_value.lower()
                         freq_count = 1
-                        if record_value in RELATIVE_FREQS[key]:
-                            freq_count = RELATIVE_FREQS[key][record_value]
+                        if record_value in RELATIVE_FREQS[record_key]:
+                            freq_count = RELATIVE_FREQS[record_key][record_value]
                         freq_count_total += freq_count
                         
                         if record_value == entity_value:
                             match = True
                 
                 if freq_count_total > 0:
-                    PVr = (1.0*freq_count_total) / (1.0*TOTALS[key])
+                    PVr = (1.0*freq_count_total) / (1.0*TOTALS[record_key])
                     if match:
-                        numerator = MATCHPROBS[key]
+                        numerator = MATCHPROBS[record_key]
                     else:
-                        numerator = (1 - MATCHPROBS[key]) * PVr
+                        numerator = (1 - MATCHPROBS[record_key]) * PVr
                     
                     unit_score = numerator / PVr
                     score = score * unit_score
