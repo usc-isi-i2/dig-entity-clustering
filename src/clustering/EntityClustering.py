@@ -4,29 +4,26 @@ import getopt
 import json
 import random
 
-PRIOR = 0.2
+PRIOR = 0.1
 data_folder = '../../data/'
 
 ## PROBABILITY TABLES
+MATCH_ITEMS = ['personAge', 'hairColor', 'eyeColor', 'name']
 MATCHPROBS = json.loads(open(data_folder+'MATCHPROBS.json').read())
+TOTALS = json.loads(open(data_folder+'TOTALS.json').read())
+RELATIVE_FREQS = {}
+for match_item in MATCH_ITEMS:
+    try:
+        RELATIVE_FREQS[match_item] = json.loads(open(data_folder+match_item+'_frequencies.json').read())
+    except:
+        print '!!!!ERROR LOADING RELATIVE_FREQS for ' + match_item
 
-personAge_frequencies = json.loads(open(data_folder+'personAge_frequencies.json').read())
-hairColor_frequencies = json.loads(open(data_folder+'hairColor_frequencies.json').read())
-eyeColor_frequencies = json.loads(open(data_folder+'eyeColor_frequencies.json').read())
-name_frequencies = json.loads(open(data_folder+'name_frequencies.json').read())
-
-RELATIVE_FREQS = {
-    'personAge': personAge_frequencies,
-    'hairColor': hairColor_frequencies,
-    'eyeColor': eyeColor_frequencies,
-    'name': name_frequencies
-}
-
-TOTALS = {
-    'personAge': 11699659,
-    'hairColor': 1993511,
-    'eyeColor': 1334966,
-    'name': 1425455
+## Not USED YET
+MAX_VALUES = {
+    'personAge': 5,
+    'hairColor': 2,
+    'eyeColor': 2,
+    'name': 3
 }
 
 def get_best_record_and_score(cluster, records):
@@ -44,8 +41,9 @@ def get_best_record_and_score(cluster, records):
                     record_values.append(record[key])
                 else:
                     record_values = record[key]
-                
-                best_unit_score = -1
+                 
+                freq_count_total = 0
+                match = False
                 for record_value in record_values:
                     record_value = record_value.lower()
                     for entity_value in entity_values:
@@ -53,18 +51,41 @@ def get_best_record_and_score(cluster, records):
                         freq_count = 1
                         if record_value in RELATIVE_FREQS[key]:
                             freq_count = RELATIVE_FREQS[key][record_value]
-                        PVr = (1.0*freq_count) / (1.0*TOTALS[key])
-                        if record_value == entity_value:
-                            numerator = MATCHPROBS[key]
-                        else:
-                            numerator = (1 - MATCHPROBS[key]) * PVr
-                        denom = PVr
-                        unit_score = numerator / denom
+                        freq_count_total += freq_count
                         
-                        if unit_score > best_unit_score:
-                            best_unit_score = unit_score
-                if best_unit_score > -1:
-                    score = score * best_unit_score
+                        if record_value == entity_value:
+                            match = True
+                
+                if freq_count_total > 0:
+                    PVr = (1.0*freq_count_total) / (1.0*TOTALS[key])
+                    if match:
+                        numerator = MATCHPROBS[key]
+                    else:
+                        numerator = (1 - MATCHPROBS[key]) * PVr
+                    
+                    unit_score = numerator / PVr
+                    score = score * unit_score
+                
+#                 best_unit_score = -1
+#                 for record_value in record_values:
+#                     record_value = record_value.lower()
+#                     for entity_value in entity_values:
+#                         entity_value = entity_value.lower()
+#                         freq_count = 1
+#                         if record_value in RELATIVE_FREQS[key]:
+#                             freq_count = RELATIVE_FREQS[key][record_value]
+#                         PVr = (1.0*freq_count) / (1.0*TOTALS[key])
+#                         if record_value == entity_value:
+#                             numerator = MATCHPROBS[key]
+#                         else:
+#                             numerator = (1 - MATCHPROBS[key]) * PVr
+#                         denom = PVr
+#                         unit_score = numerator / denom
+#                          
+#                         if unit_score > best_unit_score:
+#                             best_unit_score = unit_score
+#                 if best_unit_score > -1:
+#                     score = score * best_unit_score
                 
         if score > best_score:
             best_record = record
@@ -76,63 +97,24 @@ class Cluster(object):
     def addItem(self, item):
         self.entity['uri'].append(item['uri'])
         if len(self.items) == 0:
-            if 'personAge' in item:
-                self.entity['personAge'] = []
-                if isinstance(item['personAge'], basestring):
-                    self.entity['personAge'].append(item['personAge'])
-                else:
-                    self.entity['personAge'].extend(item['personAge'])
-            if 'hairColor' in item:
-                self.entity['hairColor'] = []
-                if isinstance(item['hairColor'], basestring):
-                    self.entity['hairColor'].append(item['hairColor'])
-                else:
-                    self.entity['hairColor'].extend(item['hairColor'])
-            if 'eyeColor' in item:
-                self.entity['eyeColor'] = []
-                if isinstance(item['eyeColor'], basestring):
-                    self.entity['eyeColor'].append(item['eyeColor'])
-                else:
-                    self.entity['eyeColor'].extend(item['eyeColor'])
-            if 'name' in item:
-                self.entity['name'] = []
-                if isinstance(item['name'], basestring):
-                    self.entity['name'].append(item['name'])
-                else:
-                    self.entity['name'].extend(item['name'])
+            for match_item in MATCH_ITEMS:
+                if match_item in item:
+                    self.entity[match_item] = []
+                    if isinstance(item[match_item], basestring):
+                        self.entity[match_item].append(item[match_item])
+                    else:
+                        self.entity[match_item].extend(item[match_item])
         else:
-            if 'personAge' in item:
-                if 'personAge' not in self.entity:
-                    self.entity['personAge'] = []
-                
-                if isinstance(item['personAge'], basestring):
-                    self.entity['personAge'].append(item['personAge'])
-                else:
-                    self.entity['personAge'].extend(item['personAge'])
-            if 'hairColor' in item:
-                if 'hairColor' not in self.entity:
-                    self.entity['hairColor'] = []
-                
-                if isinstance(item['hairColor'], basestring):
-                    self.entity['hairColor'].append(item['hairColor'])
-                else:
-                    self.entity['hairColor'].extend(item['hairColor'])
-            if 'eyeColor' in item:
-                if 'eyeColor' not in self.entity:
-                    self.entity['eyeColor'] = []
-                
-                if isinstance(item['eyeColor'], basestring):
-                    self.entity['eyeColor'].append(item['eyeColor'])
-                else:
-                    self.entity['eyeColor'].extend(item['eyeColor'])
-            if 'name' in item:
-                if 'name' not in self.entity:
-                    self.entity['name'] = []
+            for match_item in MATCH_ITEMS:
+                if match_item in item:
                     
-                if isinstance(item['name'], basestring):
-                    self.entity['name'].append(item['name'])
-                else:
-                    self.entity['name'].extend(item['name'])
+                    if match_item not in self.entity:
+                        self.entity[match_item] = []
+                    
+                    if isinstance(item[match_item], basestring):
+                        self.entity[match_item].append(item[match_item])
+                    else:
+                        self.entity[match_item].extend(item[match_item])
         
         self.items.append(item)
         
