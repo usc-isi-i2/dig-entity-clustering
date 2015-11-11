@@ -3,6 +3,7 @@ import sys
 import getopt
 import json
 import random
+import uuid
 
 PRIOR = 0.1
 data_folder = '../../data/'
@@ -20,10 +21,10 @@ for match_item in MATCH_ITEMS:
 
 ## Not USED YET
 MAX_VALUES = {
-    'personAge': 5,
+    'personAge': 2,
     'hairColor': 2,
     'eyeColor': 2,
-    'name': 3
+    'name': 2
 }
 
 def get_best_record_and_score(cluster, records):
@@ -35,7 +36,7 @@ def get_best_record_and_score(cluster, records):
             if key in record:
                 # We do this because some of the values are strings and some are arrays
                 record_values = []
-                entity_values = cluster.entity[key]
+                entity_values = cluster.entity["entity_"+key]
                 
                 if isinstance(record[key], basestring):
                     record_values.append(record[key])
@@ -95,46 +96,56 @@ def get_best_record_and_score(cluster, records):
 
 class Cluster(object):
     def addItem(self, item):
-        self.entity['uri'].append(item['uri'])
+#         self.entity['uri'].append(item['uri'])
         if len(self.items) == 0:
             for match_item in MATCH_ITEMS:
                 if match_item in item:
-                    self.entity[match_item] = []
+                    entity_match_item = "entity_" + match_item
+                    self.entity[entity_match_item] = []
                     if isinstance(item[match_item], basestring):
-                        self.entity[match_item].append(item[match_item])
+                        self.entity[entity_match_item].append(item[match_item])
                     else:
-                        self.entity[match_item].extend(item[match_item])
+                        self.entity[entity_match_item].extend(item[match_item])
         else:
             for match_item in MATCH_ITEMS:
                 if match_item in item:
-                    
-                    if match_item not in self.entity:
-                        self.entity[match_item] = []
+                    entity_match_item = "entity_" + match_item
+                    if entity_match_item not in self.entity:
+                        self.entity[entity_match_item] = []
                     
                     if isinstance(item[match_item], basestring):
-                        self.entity[match_item].append(item[match_item])
+                        self.entity[entity_match_item].append(item[match_item])
                     else:
-                        self.entity[match_item].extend(item[match_item])
+                        self.entity[entity_match_item].extend(item[match_item])
         
         self.items.append(item)
         
     def get_keys(self):
         keys = self.entity.keys()
-        keys.remove('uri')
+#         keys.remove('uri')
         return keys
     
     def __init__(self):
         self.items = []
         self.entity = {}
-        self.entity['uri'] = []
-        
-    def __str__(self, *args, **kwargs):
-        output_object = {}
-        output_object['entity'] = self.entity
-        for item in output_object['entity']:
-            output_object['entity'][item] = list(set(output_object['entity'][item]))
-        output_object['items'] = self.items
-        return json.dumps(output_object)
+#         self.entity['entity_uris'] = []
+        self.entity['entity_id'] = str(uuid.uuid4())
+    
+    def getFlattenedItems(self):
+        output_objects = []
+        for item in self.items:
+            output_object = item
+            output_object.update(self.entity)
+            output_objects.append(output_object)
+        return output_objects
+            
+#     def __str__(self, *args, **kwargs):
+#         output_object = {}
+#         output_object['entity'] = self.entity
+#         for item in output_object['entity']:
+#             output_object['entity'][item] = list(set(output_object['entity'][item]))
+#         output_object['items'] = self.items
+#         return json.dumps(output_object)
 
 def main(argv):
     inputfile = ''
@@ -180,11 +191,11 @@ def main(argv):
 
         clusters.append(new_cluster)
         
-    json_result = {}
-    json_result['entities'] = []
+    json_result = []
     for cluster in clusters:
-        json_result['entities'].append(json.loads(str(cluster)))
-    print json.dumps(json_result, sort_keys=True, indent=4, separators=(',', ': '))
+        json_result.extend(cluster.getFlattenedItems())
+    for result in json_result:
+        print json.dumps(result, separators=(',', ': '))
 
 if __name__ == "__main__":
     main(sys.argv[1:])
