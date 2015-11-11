@@ -7,6 +7,7 @@ import uuid
 
 PRIOR = 0.4
 data_folder = '../../data/'
+CANOPY_ID = str(uuid.uuid4())
 
 ## PROBABILITY TABLES
 MATCH_ITEMS = ['personAge', 'hairColor', 'eyeColor', 'name']
@@ -136,6 +137,7 @@ class Cluster(object):
         output_objects = []
         for item in self.items:
             output_object = item
+            output_object['canopy_id'] = CANOPY_ID
             output_object.update(self.entity)
             for item in self.entity:
                 if item != 'entity_id':
