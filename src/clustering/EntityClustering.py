@@ -5,7 +5,7 @@ import json
 import random
 import uuid
 
-PRIOR = 0.1
+PRIOR = 0.4
 data_folder = '../../data/'
 
 ## PROBABILITY TABLES
@@ -137,6 +137,9 @@ class Cluster(object):
         for item in self.items:
             output_object = item
             output_object.update(self.entity)
+            for item in self.entity:
+                if item != 'entity_id':
+                    output_object[item] = list(set(self.entity[item]))
             output_objects.append(output_object)
         return output_objects
             
@@ -165,11 +168,15 @@ def main(argv):
     
     records = []
     
-    with codecs.open(inputfile, "r", "utf-8") as myfile:
-        for line in myfile:
-            the_json = line.encode("utf-8")
-            json_object = json.loads(the_json)
-            records.append(json_object)
+    json_object = json.loads(codecs.open(inputfile, "r", "utf-8").read().encode("utf-8"))
+    for record in json_object['clusters']:
+        records.append(record)
+        
+#     with codecs.open(inputfile, "r", "utf-8") as myfile:
+#         for line in myfile:
+#             the_json = line.encode("utf-8")
+#             json_object = json.loads(the_json)
+#             records.append(json_object)    
         
     # Take an item from the canopy and make it a cluster
     clusters = []
