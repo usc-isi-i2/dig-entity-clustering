@@ -42,7 +42,7 @@ class EntityClusterer(object):
         canopy_id = str(uuid.uuid4())
         records = []
         
-        for record in doc['clusters']:
+        for record in doc['cluster']:
             records.append(record)
         
 #     with codecs.open(inputfile, "r", "utf-8") as myfile:
@@ -68,6 +68,8 @@ class EntityClusterer(object):
                     records.remove(record)
     
             clusters.append(new_cluster)
+        
+        print '--> %d clusters' % len(clusters)
         
         json_result = []
         for cluster in clusters:
@@ -202,7 +204,68 @@ class Cluster(object):
 
 if __name__ == "__main__":
     
+    from elasticsearch.client import Elasticsearch
+    import traceback
+    import urllib3
+    urllib3.disable_warnings()
+    
     ec = EntityClusterer()
-    json_object = json.loads(codecs.open('/Users/bamana/Documents/InferLink/workspace/dig-entity-clustering/sample/adultservice_canopy.json', "r", "utf-8").read().encode("utf-8"))
-    print json.dumps(ec.do_clustering(json_object))
+    
+    elasticsearch_loc = 'https://darpamemex:darpamemex@esc.memexproxy.com/dig-clusters-qpr-01/'
+    es = Elasticsearch([elasticsearch_loc], show_ssl_warnings=False)
+
+    from_value = 0
+    size_value = 4
+    total_hits = 100
+    
+    import operator
+    clusters = {}
+    
+    with codecs.open('/Users/bamana/Documents/InferLink/workspace/dig-entity-clustering/canopy_entity.jl', "w", "utf-8") as myfile:
+        res = es.search( body={"size" : 12834, "query": {"match_all": {}}, "_source":["cluster.a"]  })
+        hits_array = res['hits']['hits']
+        for hit in hits_array:
+            _id = hit['_id']
+            cluster_size = len(hit['_source']['cluster'])
+            clusters[_id] = cluster_size
+        sorted_clusters = sorted(clusters.items(), key=operator.itemgetter(1), reverse=True)
+        
+        for index in range(0,5):
+            print sorted_clusters[index]
+            _id = sorted_clusters[index][0]
+            res = es.search( body={"query": {"match": {"_id": _id}}})
+            hits_array = res['hits']['hits']
+            for hit in hits_array:
+                cluster = hit['_source']
+                print 'processing cluster with size ' + str(len(hit['_source']['cluster']))
+                records = ec.do_clustering(cluster)
+                for record in records:
+                    myfile.write(json.dumps(record))
+                    myfile.write('\n')
+        
+        
+
+#         while from_value < total_hits:
+#             try:
+#                 res = es.search( body={"from" : from_value, "size" : size_value,"query": {"match_all": {} }})
+#                 
+#                 hits_array = res['hits']['hits']
+#                 for hit in hits_array:
+#                     if len(hit['_source']['cluster']) >= 10:
+#                         cluster = hit['_source']
+#                         print 'processing cluster with size ' + str(len(hit['_source']['cluster']))
+#                         records = ec.do_clustering(cluster)
+#                         for record in records:
+#                             myfile.write(json.dumps(record))
+#                             myfile.write('\n')
+#             except:
+#                 traceback.print_exc()
+#                 
+#             from_value += size_value
+    
+#     ec = EntityClusterer()
+#     json_object = json.loads(codecs.open('/Users/bamana/Documents/InferLink/workspace/dig-entity-clustering/sample/adultservice_canopy.json', "r", "utf-8").read().encode("utf-8"))
+#     print json.dumps(ec.do_clustering(json_object))
+    
+    
     
