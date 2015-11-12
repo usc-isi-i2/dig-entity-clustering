@@ -69,7 +69,7 @@ class EntityClusterer(object):
     
             clusters.append(new_cluster)
         
-        print '--> %d clusters' % len(clusters)
+        print '--> %d entities' % len(clusters)
         
         json_result = []
         for cluster in clusters:
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     import operator
     clusters = {}
     
-    with codecs.open('/Users/bamana/Documents/InferLink/workspace/dig-entity-clustering/canopy_entity.jl', "w", "utf-8") as myfile:
+    with codecs.open('../../canopy_entity.jl', "w", "utf-8") as myfile:
         res = es.search( body={"size" : 12834, "query": {"match_all": {}}, "_source":["cluster.a"]  })
         hits_array = res['hits']['hits']
         for hit in hits_array:
@@ -230,20 +230,18 @@ if __name__ == "__main__":
             clusters[_id] = cluster_size
         sorted_clusters = sorted(clusters.items(), key=operator.itemgetter(1), reverse=True)
         
-        for index in range(0,5):
+        for index in range(0,100):
             print sorted_clusters[index]
             _id = sorted_clusters[index][0]
-            res = es.search( body={"query": {"match": {"_id": _id}}})
+            res = es.search( body={"query": {"match": {"_id": _id}},"_source": { "excludes": ["cluster.image.isSimilarTo"]}})
             hits_array = res['hits']['hits']
             for hit in hits_array:
                 cluster = hit['_source']
-                print 'processing cluster with size ' + str(len(hit['_source']['cluster']))
+                print 'processing canopy with size ' + str(len(hit['_source']['cluster']))
                 records = ec.do_clustering(cluster)
                 for record in records:
                     myfile.write(json.dumps(record))
                     myfile.write('\n')
-        
-        
 
 #         while from_value < total_hits:
 #             try:
