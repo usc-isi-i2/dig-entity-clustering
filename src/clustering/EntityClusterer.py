@@ -38,8 +38,10 @@ class EntityClusterer(object):
             'name': 2
         }
         
-    def do_clustering(self, doc):
-        canopy_id = str(uuid.uuid4())
+    def do_clustering(self, doc, canopy_id ):
+        if not canopy_id:
+            canopy_id = str(uuid.uuid4())
+#         canopy_id = str(uuid.uuid4())
         records = []
         
         for record in doc['cluster']:
@@ -92,7 +94,7 @@ def get_best_record_and_score(cluster, records):
                     record_values.append(record[record_key])
                 else:
                     record_values = record[record_key]
-                 
+                
                 freq_count_total = 0
                 match = False
                 for record_value in record_values:
@@ -102,6 +104,21 @@ def get_best_record_and_score(cluster, records):
                         freq_count = 1
                         if record_value in RELATIVE_FREQS[record_key]:
                             freq_count = RELATIVE_FREQS[record_key][record_value]
+                            
+                        # HACK TO DO +/- 1 for age
+                        if record_key == 'personAge':
+                            age = int(record_value)
+                            age_plus_one = str(age+1)
+                            if age_plus_one in RELATIVE_FREQS[record_key]:
+                                freq_count += RELATIVE_FREQS[record_key][age_plus_one]
+                                if age_plus_one == entity_value:
+                                    match = True
+                            age_minus_one = str(age-1)
+                            if age_minus_one in RELATIVE_FREQS[record_key]:
+                                freq_count += RELATIVE_FREQS[record_key][age_minus_one]
+                                if age_minus_one == entity_value:
+                                    match = True
+                        
                         freq_count_total += freq_count
                         
                         if record_value == entity_value:
@@ -156,6 +173,7 @@ class Cluster(object):
                         self.entity[entity_match_item].append(item[match_item])
                     else:
                         self.entity[entity_match_item].extend(item[match_item])
+                    self.entity[entity_match_item] = list(set(self.entity[entity_match_item]))
         else:
             for match_item in MATCH_ITEMS:
                 if match_item in item:
@@ -167,6 +185,7 @@ class Cluster(object):
                         self.entity[entity_match_item].append(item[match_item])
                     else:
                         self.entity[entity_match_item].extend(item[match_item])
+                    self.entity[entity_match_item] = list(set(self.entity[entity_match_item]))
         
         self.items.append(item)
         
@@ -207,63 +226,65 @@ if __name__ == "__main__":
     from elasticsearch.client import Elasticsearch
     import traceback
     import urllib3
+    import os
     urllib3.disable_warnings()
     
     ec = EntityClusterer()
     
-    elasticsearch_loc = 'https://darpamemex:darpamemex@esc.memexproxy.com/dig-clusters-qpr-01/'
-    es = Elasticsearch([elasticsearch_loc], show_ssl_warnings=False)
-
-    from_value = 0
-    size_value = 4
-    total_hits = 100
-    
-    import operator
-    clusters = {}
-    
+    #JSON LINES TO JSON LINES
     with codecs.open('../../canopy_entity.jl', "w", "utf-8") as myfile:
-        res = es.search( body={"size" : 12834, "query": {"match_all": {}}, "_source":["cluster.a"]  })
-        hits_array = res['hits']['hits']
-        for hit in hits_array:
-            _id = hit['_id']
-            cluster_size = len(hit['_source']['cluster'])
-            clusters[_id] = cluster_size
-        sorted_clusters = sorted(clusters.items(), key=operator.itemgetter(1), reverse=True)
-        
-        for index in range(0,100):
-            print sorted_clusters[index]
-            _id = sorted_clusters[index][0]
-            res = es.search( body={"query": {"match": {"_id": _id}},"_source": { "excludes": ["cluster.image.isSimilarTo"]}})
-            hits_array = res['hits']['hits']
-            for hit in hits_array:
-                cluster = hit['_source']
-                print 'processing canopy with size ' + str(len(hit['_source']['cluster']))
-                records = ec.do_clustering(cluster)
+        directory = '../../data/canopy_frist_try/'
+        for subdir, dirs, files in os.walk(directory):
+            for the_file in files:
+                if the_file.startswith('.'):
+                    continue
+                print "processing " + the_file
+                cluster = {}
+                cluster['cluster'] = []
+                with codecs.open(directory+the_file, "r", "utf-8") as json_file:
+                    for line in json_file:
+                        record = json.loads(line)
+                        cluster['cluster'].append(record)
+                      
+                if len(cluster['cluster']) < 2:
+                    print "skipping because record size is " + str(len(cluster['cluster']))
+                    continue
+                  
+                print 'processing ' + the_file + ' with size ' + str(len(cluster['cluster']))
+                records = ec.do_clustering(cluster, the_file)
                 for record in records:
                     myfile.write(json.dumps(record))
                     myfile.write('\n')
+                    
+    ## ELASTIC SEARCH TO JSON LINES
+#     elasticsearch_loc = 'https://darpamemex:darpamemex@esc.memexproxy.com/dig-clusters-qpr-01/'
+#     es = Elasticsearch([elasticsearch_loc], show_ssl_warnings=False)
+#    
+#     import operator
+#     clusters = {}
+#        
+#     with codecs.open('../../canopy_entity.jl', "w", "utf-8") as myfile:
+#         res = es.search( body={"size" : 12834, "query": {"match_all": {}}, "_source":["cluster.a"]  })
+#         hits_array = res['hits']['hits']
+#         for hit in hits_array:
+#             _id = hit['_id']
+#             cluster_size = len(hit['_source']['cluster'])
+#             clusters[_id] = cluster_size
+#         sorted_clusters = sorted(clusters.items(), key=operator.itemgetter(1), reverse=True)
+#            
+#         for index in range(0,5):
+#             print sorted_clusters[index]
+#             _id = sorted_clusters[index][0]
+#             res = es.search( body={"query": {"match": {"_id": _id}},"_source": { "excludes": ["cluster.image.isSimilarTo"]}})
+#             hits_array = res['hits']['hits']
+#             for hit in hits_array:
+#                 cluster = hit['_source']
+#                 print 'processing canopy with size ' + str(len(hit['_source']['cluster']))
+#                 records = ec.do_clustering(cluster, None)
+#                 for record in records:
+#                     myfile.write(json.dumps(record))
+#                     myfile.write('\n')
 
-#         while from_value < total_hits:
-#             try:
-#                 res = es.search( body={"from" : from_value, "size" : size_value,"query": {"match_all": {} }})
-#                 
-#                 hits_array = res['hits']['hits']
-#                 for hit in hits_array:
-#                     if len(hit['_source']['cluster']) >= 10:
-#                         cluster = hit['_source']
-#                         print 'processing cluster with size ' + str(len(hit['_source']['cluster']))
-#                         records = ec.do_clustering(cluster)
-#                         for record in records:
-#                             myfile.write(json.dumps(record))
-#                             myfile.write('\n')
-#             except:
-#                 traceback.print_exc()
-#                 
-#             from_value += size_value
-    
-#     ec = EntityClusterer()
-#     json_object = json.loads(codecs.open('/Users/bamana/Documents/InferLink/workspace/dig-entity-clustering/sample/adultservice_canopy.json', "r", "utf-8").read().encode("utf-8"))
-#     print json.dumps(ec.do_clustering(json_object))
     
     
     
